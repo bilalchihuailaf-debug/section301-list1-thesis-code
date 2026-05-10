@@ -1,27 +1,63 @@
 # ============================================================
-# Figure-generation code for the thesis
+# Code excerpt G3. Figure-generation code
 # ============================================================
 #
 # This script documents the code used to generate the main and
 # appendix figures. It defines a shared visual style, a function
 # for monthly treated-control average plots, and a function for
 # event-study coefficient plots.
+#
+# This script assumes that the final analysis dataset and the
+# regression objects from 02_regression_implementation.R have
+# already been loaded.
 # ============================================================
 
-# ============================================================
-# Code excerpt G3. Figure-generation code
-# ============================================================
 
-library(dplyr)
-library(ggplot2)
-library(scales)
-library(stringr)
-library(broom)
+# ------------------------------------------------------------
+# 1. Packages
+# ------------------------------------------------------------
+
+packages <- c("dplyr", "ggplot2", "scales", "stringr", "broom")
+
+to_install <- packages[!packages %in% installed.packages()[, "Package"]]
+if (length(to_install) > 0) install.packages(to_install)
+
+invisible(lapply(packages, library, character.only = TRUE))
+
+
+# ------------------------------------------------------------
+# 2. Check required objects
+# ------------------------------------------------------------
+
+required_objects <- c("df", "es_share", "es_ln_china", "es_ln_nonchina")
+
+missing_objects <- required_objects[!sapply(required_objects, exists)]
+
+if (length(missing_objects) > 0) {
+  stop(
+    paste0(
+      "Missing required objects: ",
+      paste(missing_objects, collapse = ", "),
+      ". Run 02_regression_implementation.R before this script."
+    )
+  )
+}
+
+# Ensure month is stored as a Date variable
+if (!inherits(df$month, "Date")) {
+  df$month <- as.Date(df$month)
+}
+
+
+# ------------------------------------------------------------
+# 3. Output folder
+# ------------------------------------------------------------
 
 dir.create("outputs/figures", recursive = TRUE, showWarnings = FALSE)
 
+
 # ------------------------------------------------------------
-# 1. Shared figure settings
+# 4. Shared figure settings
 # ------------------------------------------------------------
 
 font_family <- "sans"
@@ -37,10 +73,12 @@ interim_start <- as.Date("2018-04-01")
 post_start    <- as.Date("2018-08-01")
 end_date      <- as.Date("2019-12-01")
 
+
 theme_thesis_clean <- function() {
   theme_minimal(base_size = 11, base_family = font_family) +
     theme(
       text = element_text(family = font_family, colour = "black"),
+      
       plot.title.position = "plot",
       plot.title = element_text(
         size = 15,
@@ -54,26 +92,33 @@ theme_thesis_clean <- function() {
         margin = margin(b = 18)
       ),
       plot.caption = element_blank(),
+      
       axis.title.y = element_text(size = 12, margin = margin(r = 12)),
       axis.text.x = element_text(size = 10, angle = 45, hjust = 1, vjust = 1),
       axis.text.y = element_text(size = 10),
+      
       panel.grid.minor = element_blank(),
       panel.grid.major.x = element_blank(),
       panel.grid.major.y = element_line(colour = light_grey, linewidth = 0.7),
+      
       axis.line.x = element_line(colour = "black", linewidth = 0.45),
       axis.ticks.x = element_line(colour = "black", linewidth = 0.45),
       axis.ticks.length.x = grid::unit(0.18, "cm"),
+      
       legend.position = "top",
       legend.title = element_blank(),
       legend.text = element_text(size = 10),
+      
       plot.background = element_rect(fill = "white", colour = NA),
       panel.background = element_rect(fill = "white", colour = NA),
+      
       plot.margin = margin(12, 18, 12, 10)
     )
 }
 
+
 # ------------------------------------------------------------
-# 2. Monthly treated-control average plots
+# 5. Monthly treated-control average plots
 # ------------------------------------------------------------
 
 make_avg_treat_plot <- function(data,
@@ -99,7 +144,15 @@ make_avg_treat_plot <- function(data,
       )
     )
   
-  p <- ggplot(plot_df, aes(x = month, y = y, colour = treat_label)) +
+  p <- ggplot(
+    plot_df,
+    aes(
+      x = month,
+      y = y,
+      colour = treat_label,
+      linetype = treat_label
+    )
+  ) +
     annotate(
       "rect",
       xmin = post_start,
@@ -152,6 +205,12 @@ make_avg_treat_plot <- function(data,
         "Control (Removed from proposal)" = econ_teal
       )
     ) +
+    scale_linetype_manual(
+      values = c(
+        "Treated (Final List 1)" = "solid",
+        "Control (Removed from proposal)" = "dashed"
+      )
+    ) +
     scale_x_date(
       limits = c(min(plot_df$month, na.rm = TRUE), end_date),
       date_breaks = "6 months",
@@ -163,7 +222,8 @@ make_avg_treat_plot <- function(data,
       subtitle = subtitle_text,
       x = NULL,
       y = y_label,
-      colour = NULL
+      colour = NULL,
+      linetype = NULL
     ) +
     coord_cartesian(clip = "off") +
     theme_thesis_clean()
@@ -202,8 +262,9 @@ make_avg_treat_plot <- function(data,
   return(p)
 }
 
+
 # ------------------------------------------------------------
-# 3. Event-study plots
+# 6. Event-study plots
 # ------------------------------------------------------------
 
 make_es_plot <- function(model,
@@ -241,6 +302,11 @@ make_es_plot <- function(model,
     filter(month <= end_date)
   
   y_top <- max(es$conf.high, na.rm = TRUE)
+  y_pad <- max(abs(es$estimate), na.rm = TRUE)
+  
+  if (!is.finite(y_pad) || y_pad == 0) {
+    y_pad <- 0.05
+  }
   
   p <- ggplot(es, aes(x = month, y = estimate)) +
     annotate(
@@ -293,7 +359,7 @@ make_es_plot <- function(model,
       annotate(
         "text",
         x = as.Date("2018-05-15"),
-        y = y_top + 0.04 * max(abs(es$estimate), na.rm = TRUE),
+        y = y_top + 0.04 * y_pad,
         label = "Interim",
         colour = dark_grey,
         fontface = "bold",
@@ -303,7 +369,7 @@ make_es_plot <- function(model,
       annotate(
         "text",
         x = as.Date("2018-12-01"),
-        y = y_top + 0.04 * max(abs(es$estimate), na.rm = TRUE),
+        y = y_top + 0.04 * y_pad,
         label = "Post-treatment",
         colour = econ_red,
         fontface = "bold",
@@ -346,8 +412,9 @@ make_es_plot <- function(model,
   return(p)
 }
 
+
 # ------------------------------------------------------------
-# 4. Figure calls
+# 7. Figure calls
 # ------------------------------------------------------------
 
 p_avg_share <- make_avg_treat_plot(
