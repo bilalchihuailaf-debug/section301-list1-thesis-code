@@ -1,5 +1,5 @@
 # ============================================================
-# Regression implementation for the thesis
+# Code excerpt G2. Regression implementation
 # ============================================================
 #
 # This script documents the R implementation of the baseline
@@ -10,13 +10,11 @@
 # data/panel_hts8_month_analysis_final_r_ready.csv
 # ============================================================
 
-# ============================================================
-# Code excerpt G2. Regression implementation
-# ============================================================
+packages <- c("readr", "dplyr", "fixest")
+to_install <- packages[!packages %in% installed.packages()[, "Package"]]
+if (length(to_install) > 0) install.packages(to_install)
 
-library(readr)
-library(dplyr)
-library(fixest)
+invisible(lapply(packages, library, character.only = TRUE))
 
 # ------------------------------------------------------------
 # 1. Import final analysis dataset
@@ -48,7 +46,11 @@ df <- read_csv(
   )
 )
 
-# Month identifier used for fixed effects and event-study interactions
+# Note: the raw variable name `nsuppliers_nonchina_pre` is retained
+# from the data-construction stage. In the thesis, it is interpreted as
+# pre-treatment non-China source-country count because the data identify
+# countries of origin rather than individual firms or suppliers.
+
 df <- df %>%
   mutate(
     month_id = format(month, "%Y-%m")
@@ -173,3 +175,8 @@ ddd_share_hhi <- feols(
   data = df,
   cluster = ~ hts8
 )
+
+# Optional console output
+etable(did_share, did_ln_china, did_ln_nonchina, se.below = TRUE)
+etable(ddd_share_count, ddd_ln_china_count, ddd_ln_nonchina_count, se.below = TRUE)
+etable(ddd_share_hhi, se.below = TRUE)
